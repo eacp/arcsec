@@ -10,3 +10,10 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Editor folders
+.idea/
+.vscode/
+
+# Large test files that should not be uploaded nor commited
+*.large.*
