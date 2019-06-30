@@ -36,7 +36,7 @@ func TestVaultReader_Close(t *testing.T) {
 
 	// It doesn't matter if we have an enc reader or not.
 	// We are testing delete on close
-	v := VaultReader{nil, tmpPath}
+	v := VaultReader{nil, tmpFile}
 	if !fileExists(tmpPath) {
 		t.Fatal("The file was not created")
 	}
@@ -74,6 +74,62 @@ func TestMakeGCMFromKey(t *testing.T) {
 			_, err := createAESGCMFromKey(tc.key)
 			if (tc.good && err != nil) || (!tc.good && err == nil) {
 				t.Fatal("Error not corresponing to key")
+			}
+		})
+	}
+}
+
+type vaultTC struct {
+	name  string
+	files []string
+	key   []byte
+	good  bool
+}
+
+func testMakeVaultGood(t *testing.T, tc vaultTC) {
+	if _, err := NewVaultReader(tc.files, tc.key); err != nil {
+		t.Fatal("Error should be nil in a good test case. Instead got ", err)
+	}
+}
+
+func testMakeVaultBad(t *testing.T, tc vaultTC) {
+	if _, err := NewVaultReader(tc.files, tc.key); err == nil {
+		t.Fatal("Error should not be nil in a bad test case")
+	}
+}
+
+func TestCreateVaultReader(t *testing.T) {
+	goodFiles, _ := lsRecursive("testing-files/in")
+	tests := []vaultTC{
+		{
+			"Good files good key",
+			goodFiles,
+			genKey("password123"),
+			true,
+		},
+		{
+			"Good files bad key",
+			goodFiles,
+			[]byte("123"),
+			false,
+		},
+		{
+			"Bad files good key",
+			[]string{"imaginary", "files"},
+			genKey("123"),
+			false,
+		},
+	}
+	for _, test := range tests {
+		// If the test case is good test a good result,
+		// otherwise test a bad result
+		t.Run(test.name, func(t *testing.T) {
+			if test.good {
+				// Everything is good and test it as such
+				testMakeVaultGood(t, test)
+			} else {
+				// Something is bad and is supposed to fail
+				testMakeVaultBad(t, test)
 			}
 		})
 	}

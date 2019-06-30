@@ -18,14 +18,17 @@ import (
 // the retrieval of the plain data from the temporal dir.
 type VaultReader struct {
 	*sio.EncReader
-	tmpFilePath string
+	tmpFile *os.File
 }
 
 func (v *VaultReader) Close() error {
 	// We have to remove the file from the
 	// disk. Once we do this we wont be able to
 	// read from it again
-	return os.Remove(v.tmpFilePath)
+	if err := v.tmpFile.Close(); err != nil {
+		return err
+	}
+	return os.Remove(v.tmpFile.Name())
 }
 
 // Create a GCM from the key
@@ -70,14 +73,18 @@ func NewVaultReader(files []string, key []byte) (*VaultReader, error) {
 	// We can now create a vault thanks to sio
 	stream := sio.NewStream(gcm, sio.BufSize)
 
-	nonce := make([]byte, 0, stream.NonceSize())
+	ns := stream.NonceSize()
 
-	if _, err = io.ReadFull(rand.Reader, nonce[:]); err != nil {
+	nonce := make([]byte, ns)
+
+	if _, err = io.ReadFull(rand.Reader, nonce[:ns]); err != nil {
 		return nil, err
 	}
 
-	// Use that stream to make an enc reader according to sio docs
-	er := stream.EncryptReader(tmpFile, nonce, nil)
+	//fmt.Println(nonce)
 
-	return &VaultReader{er, tmpPath}, nil
+	// Use that stream to make an enc reader according to sio docs
+	er := stream.EncryptReader(tmpFile, nonce[:ns], nil)
+
+	return &VaultReader{er, tmpFile}, nil
 }
