@@ -1,0 +1,6 @@
+File for testing arc.go
+
+PLEASE DO NOT DELETE
+
+This file is used to evaluate if we can add a certain amount of files
+that exists and do not exists
