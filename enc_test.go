@@ -2,6 +2,7 @@ package arcsek
 
 import (
 	"crypto/sha1"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -26,7 +27,7 @@ func fileExists(name string) bool {
 }
 
 // Tests the Close method of the vault
-func TestVaultReader_Close(t *testing.T) {
+func testNormalClose(t *testing.T) {
 	tmpFile, err := ioutil.TempFile(".", "*.tar.gz")
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +54,43 @@ func TestVaultReader_Close(t *testing.T) {
 	}
 
 	t.Logf("The file %s was deleted", tmpPath)
+}
+
+func TestVaultReader_Close(t *testing.T) {
+	// Do 5 random open and close
+	for i := 0; i < 5; i++ {
+		t.Run(fmt.Sprintf("Normal Close() %dth", i+1), testNormalClose)
+	}
+
+	// Now remove the file WHILE still in use to test the error
+	tmpFile, err := ioutil.TempFile(".", "*.tar.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpPath := tmpFile.Name()
+
+	// It doesn't matter if we have an enc reader or not.
+	// We are testing delete on close
+	v := VaultReader{nil, tmpFile}
+	if !fileExists(tmpPath) {
+		t.Fatal("The file was not created")
+	}
+
+	// The file exists at this point
+	// delete it before
+	if err = v.tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = os.Remove(tmpPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = v.Close(); err == nil {
+		// The err was not launched
+		t.Fatal("No error launched for previously deleted file")
+	}
 }
 
 // Test if the GCM can be created with a good or a bad key
@@ -100,6 +138,7 @@ func testMakeVaultBad(t *testing.T, tc vaultTC) {
 
 func TestCreateVaultReader(t *testing.T) {
 	goodFiles, _ := lsRecursive("testing-files/in")
+	otherGoodFiles, _ := lsRecursive("testing-files/in/existance")
 	tests := []vaultTC{
 		{
 			"Good files good key",
@@ -118,6 +157,18 @@ func TestCreateVaultReader(t *testing.T) {
 			[]string{"imaginary", "files"},
 			genKey("123"),
 			false,
+		},
+		{
+			"Bad files Bad key",
+			[]string{"imaginary", "files"},
+			[]byte("BadKey"),
+			false,
+		},
+		{
+			"Another group of good files",
+			otherGoodFiles,
+			genKey("GoodBoi"),
+			true,
 		},
 	}
 	for _, test := range tests {
