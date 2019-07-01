@@ -13,12 +13,14 @@ import (
 // This type is composed of an encrypted reader
 // but also implements io.Closer by deleting the underlying
 // temporal clean file.
+// It also stores the nonce if you need to use it later
 //
 // It is important to close the vault in order to prevent
 // the retrieval of the plain data from the temporal dir.
 type VaultReader struct {
 	*sio.EncReader
 	tmpFile *os.File
+	Nonce   []byte
 }
 
 func (v *VaultReader) Close() error {
@@ -86,5 +88,5 @@ func NewVaultReader(files []string, key []byte) (*VaultReader, error) {
 	// Use that stream to make an enc reader according to sio docs
 	er := stream.EncryptReader(tmpFile, nonce[:ns], nil)
 
-	return &VaultReader{er, tmpFile}, nil
+	return &VaultReader{er, tmpFile, nonce}, nil
 }

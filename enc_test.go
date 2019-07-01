@@ -3,6 +3,8 @@ package arcsek
 import (
 	"crypto/sha1"
 	"fmt"
+	"github.com/secure-io/sio-go"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -37,7 +39,7 @@ func testNormalClose(t *testing.T) {
 
 	// It doesn't matter if we have an enc reader or not.
 	// We are testing delete on close
-	v := VaultReader{nil, tmpFile}
+	v := VaultReader{nil, tmpFile, nil}
 	if !fileExists(tmpPath) {
 		t.Fatal("The file was not created")
 	}
@@ -72,7 +74,7 @@ func TestVaultReader_Close(t *testing.T) {
 
 	// It doesn't matter if we have an enc reader or not.
 	// We are testing delete on close
-	v := VaultReader{nil, tmpFile}
+	v := VaultReader{nil, tmpFile, nil}
 	if !fileExists(tmpPath) {
 		t.Fatal("The file was not created")
 	}
@@ -137,8 +139,8 @@ func testMakeVaultBad(t *testing.T, tc vaultTC) {
 }
 
 func TestCreateVaultReader(t *testing.T) {
-	goodFiles, _ := lsRecursive("testing-files/in")
-	otherGoodFiles, _ := lsRecursive("testing-files/in/existance")
+	goodFiles, _ := lsDir("testing-files/in")
+	otherGoodFiles, _ := lsDir("testing-files/in/existance")
 	tests := []vaultTC{
 		{
 			"Good files good key",
@@ -183,5 +185,33 @@ func TestCreateVaultReader(t *testing.T) {
 				testMakeVaultBad(t, test)
 			}
 		})
+	}
+}
+
+func TestEncDec(t *testing.T) {
+	// Create a vault
+	files, _ := lsDir("testing-files/in")
+	k := genKey("xdxdxdxd")
+	vr, err := NewVaultReader(files, k)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// now we are supposed to make a stream cipher to decrypt
+	// it
+
+	aes128gcm, _ := createAESGCMFromKey(k)
+	s := sio.NewStream(aes128gcm, sio.BufSize)
+	dr := s.DecryptReader(vr, vr.Nonce, nil)
+
+	// copy the decrypted version
+	tmp, err := ioutil.TempFile("testing-files/out", "dec-*-large.tar.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = io.Copy(tmp, dr); err != nil {
+		t.Fatal(err)
 	}
 }

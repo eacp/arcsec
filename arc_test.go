@@ -81,7 +81,7 @@ func testCreateTmpGoodFiles(t *testing.T) {
 }
 
 // List all the files in test-files/in if they are not directories
-func lsRecursive(rootDir string) ([]string, error) {
+func lsDir(rootDir string) ([]string, error) {
 	// Allocate some space
 	fis, err := ioutil.ReadDir("testing-files/in")
 	if err != nil {
@@ -105,7 +105,7 @@ func TestCreateTempTarGz(t *testing.T) {
 }
 
 func TestCreateFromDir(t *testing.T) {
-	paths, err := lsRecursive("testing-files/in")
+	paths, err := lsDir("testing-files/in")
 	if err != nil {
 		t.Fail()
 	}
