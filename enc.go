@@ -4,13 +4,15 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/secure-io/sio-go"
 )
 
-// This type is composed of an encrypted reader
+// VaultReader is amazing :D
+//
 // but also implements io.Closer by deleting the underlying
 // temporal clean file.
 // It also stores the nonce if you need to use it later
@@ -23,6 +25,9 @@ type VaultReader struct {
 	Nonce   []byte
 }
 
+// Close errases the underlying tempora
+// file to prevent it's retrieval by an attacker
+// and save disk space
 func (v *VaultReader) Close() error {
 	// We have to remove the file from the
 	// disk. Once we do this we wont be able to
@@ -46,12 +51,17 @@ func createAESGCMFromKey(key []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// Package the specified files and
-// encrypt the result. Then create a Vault Reader that can
-// also be closed.
+// NewVaultReader creates a new Vault reader by
+// packaging the specified files and encrypted the archive
+// with the specified key.
+//
+// It will use AES 128, 192 or 256 depending on the
+// length of the key. If a key of different length is
+// provided, it will return an error.
 //
 // It is important that you close this reader after you
-// are done with it
+// are done with it to delete any plain data
+// that might be left
 func NewVaultReader(files []string, key []byte) (*VaultReader, error) {
 	// Get a temporal path from which we will create an
 	// encrypted reader
@@ -89,4 +99,52 @@ func NewVaultReader(files []string, key []byte) (*VaultReader, error) {
 	er := stream.EncryptReader(tmpFile, nonce[:ns], nil)
 
 	return &VaultReader{er, tmpFile, nonce}, nil
+}
+
+// Simplifies the creation of a stream by just asking for
+// the key
+func createStreamFromKey(key []byte) (*sio.Stream, error) {
+	// We need a block cipher first
+	AESGCM, err := createAESGCMFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// With that we can create a Stream
+	s := sio.NewStream(AESGCM, sio.BufSize)
+
+	return s, nil
+}
+
+// DecryptVault receives an io.Reader that contains
+// an encrypted content and it's nonce at the start
+// of it.
+//
+// If the key is not 128, 192 or 256 bits
+// long it will cause an error. If the data cannot be
+// authenticated it will also return an error
+func DecryptVault(er io.Reader, key []byte) (*sio.DecReader, error) {
+	stream, err := createStreamFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// We read the nonce from the er
+	nonce, err := readNonce(er, stream.NonceSize())
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("The nonce is: %x\n", nonce)
+	// We use the key and the nonce to create a decrypted reader
+	dr := stream.DecryptReader(er, nonce, nil)
+
+	return dr, nil
+}
+
+// Gets the nonce from a reader containing encrypted data
+func readNonce(er io.Reader, nonceSize int) ([]byte, error) {
+	n := make([]byte, nonceSize)
+	_, err := er.Read(n)
+	return n, err
 }

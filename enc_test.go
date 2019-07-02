@@ -1,13 +1,15 @@
 package arcsek
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"github.com/secure-io/sio-go"
 	"io"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/secure-io/sio-go"
 )
 
 func genKey(pw string) []byte {
@@ -212,6 +214,36 @@ func TestEncDec(t *testing.T) {
 	}
 
 	if _, err = io.Copy(tmp, dr); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewTarReader(t *testing.T) {
+	// Generate a very small encrypted archive
+	files := []string{
+		"testing-files/in/existance/testfile1.txt",
+		"testing-files/in/existance/testfile2.txt",
+	}
+
+	k := genKey("Klara:3")
+
+	vault, err := NewVaultReader(files, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Since we are only using less than a MB we can just
+	// put everything in memory
+	buff := bytes.NewBuffer(make([]byte, 0, 20))
+	buff.Write(vault.Nonce)
+
+	// This emulates an output file, we can now copy the enc data
+	vault.WriteTo(buff)
+
+	// Using this ficticious file we can decrypt it like it
+	// was a file
+	_, err = NewTarReaderNonce(buff, k)
+	if err != nil {
 		t.Fatal(err)
 	}
 }

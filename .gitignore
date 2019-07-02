@@ -17,3 +17,4 @@
 
 # Large test files that should not be uploaded nor commited
 *large*
+*.enc
